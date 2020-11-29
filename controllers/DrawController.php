@@ -37,4 +37,36 @@ class DrawController extends BaseController
         $result = DrawService::start($accessToken);
         return $this->responseJson($result);
     }
+
+    public function actionArticle()
+    {
+        $page = intval($this->get('page', 0));
+        $size = intval($this->get('size', 20));
+        if (empty($page)) {
+            $page = 1;
+        }
+        if (empty($size)) {
+            $size = 20;
+        }
+        $offset = ($page - 1) * $size;
+        return DrawService::getArticleList($offset, $size);
+    }
+
+    public function actionExport()
+    {
+       set_time_limit(0);
+       @ini_set('memory_limit','1024M');
+       $list = DrawService::exportUserPrize();
+       return $this->success($list);
+    }
+
+    public function actionDayPrize()
+    {
+        $accessToken = $this->getAccessToken();
+        if (empty($accessToken)) {
+            return $this->error('请重新登录');
+        }
+        $result = DrawService::getDayPrize($accessToken);
+        return $this->responseJson($result);
+    }
 }

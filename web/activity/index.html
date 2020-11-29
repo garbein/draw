@@ -46,17 +46,38 @@
         <div id="draw_section" class="init-hide">
             <div><button type="submit" class="btn btn-danger btn-draw">点我立即抽奖</button></div>
         </div>
+        <div id="draw_result_section" class="init-hide">
+            <div id="prize_result"></div>
+        </div>
     </div>
     <script src="https://cdn.jsdelivr.net/npm/jquery@1.12.4/dist/jquery.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@3.3.7/dist/js/bootstrap.min.js"></script>
     <script src="http://localhost:8080/activity/layui/layui.all.js"></script>
     <script>
         $(document).ready(function () {
-
             var siteDomain = 'http://localhost:8080';
             var accessToken = localStorage.getItem('access_token');
             if (accessToken) {
-                $('#draw_section').show();
+                $.ajax({
+                    type: 'POST',
+                    url: siteDomain + '/draw/day-prize',
+                    dataType: 'json',
+                    success: function (result) {
+                        if (result && result.status) {
+                            var prizeName = '很遗憾未中奖';
+                            if (result.prize_name) {
+                                prizeName = '您今天中了' + result.prize_name;
+                            }
+                            $('#prize_result').html(prizeName);
+                            $('#draw_result_section').show();
+                        } else {
+                            $('#draw_section').show();
+                        }
+                    },
+                    error: function () {
+                        layui.layer.msg('系统错误');
+                    }
+                });
             } else {
                 $('#article_section').show();
             }

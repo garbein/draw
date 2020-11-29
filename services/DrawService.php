@@ -6,6 +6,7 @@ use Yii;
 use app\base\BaseService;
 use app\components\Redis;
 use app\models\Article;
+use app\models\Prize;
 use app\models\User;
 use app\models\UserDraw;
 use app\models\UserPrize;
@@ -71,11 +72,9 @@ class DrawService extends BaseService
         if (empty($userId)) {
             return self::error('请重新登录', 1000);
         }
-        /* 
         if (!self::setDayDrawRecord($userId)) {
             return self::error('一天只能抽一次', 1001);
         }
-         */
         $prizeList = self::getPrizeList();
         if (empty($prizeList)) {
             return self::error('很遗憾未中奖', 1002);
@@ -173,5 +172,83 @@ class DrawService extends BaseService
         $model->user_id = $userId;
         $model->prize_id = $prizeId;
         return $model->save();
+    }
+
+    public static function getArticleList($offset = 0, $limit = 20)
+    {
+        $query = User::find();
+        $total = $query->count();
+        $list = [];
+        if ($total) {
+            $rows = $query->select(['id', 'mobile'])
+                ->orderBy('id desc')
+                ->offset($offset)
+                ->limit($limit)
+                ->asArray()
+                ->all();
+            if ($rows) {
+                $userIds = array_column($list, 'id');
+                $articles = Article::find()
+                    ->select(['id', 'user_id', 'content'])
+                    ->where(['user_id' => $userIds])
+                    ->asArray()
+                    ->all();
+                if ($articles) {
+                    $articles = array_column($articles, null, 'user_id');
+                }
+                foreach ($rows as $row) {
+                    $article = $articles[$row['user_id']] ?? '';
+                    $content = $article['content'];
+                    $item = [
+                        'mobile' => $row['mobile'],
+                        'content_id' => $article['id'],
+                        'content' => $content,
+                    ];
+                }
+            }
+        }
+        return self::success(['list' => $list, 'total' => $total]);
+    }
+
+    public static function exportUserPrize()
+    {
+        $query = UserPrize::find()->innerJoin(User::tableName() . ' u', 'u.id = user_id');
+        $query->select(['user_id', 'prize_id', 'mobile']);
+        $rows = $query->asArray()->all();
+        $list = [];
+        if ($rows) {
+            $prizeList = PrizeService::getPrizeList();
+            $prizes = array_column($prizeList, 'name', 'id');
+            foreach ($rows as $row) {
+                $item = [
+                    'mobile' => $row['mobile'],
+                    'prize_name' => $prizes[$row['prize_id']]['name'] ?? '',
+                ];
+            }
+        }
+        return $list;
+    }
+
+    public static function getDayPrize($accessToken)
+    {
+        $userId = self::getAccessTokenCache($accessToken);
+        if (empty($userId)) {
+            return self::error('请重新登录', 1000);
+        }
+        $is = Redis::getConn()->sismember('draw:record:' . date('Ymd'), $userId);
+        $prizeName = '';
+        if ($is) {
+            $prize = UserPrize::find()->innerJoin(Prize::tableName() . ' p', 'p.id = prize_id')
+                ->select(['name'])
+                ->where(['user_id' => $userId])
+                ->asArray()
+                ->one();
+            $prizeName = $prize['name'] ?? '';
+        }
+        $data = [
+            'status' => $is,
+            'prize_name' => $prizeName,
+        ];
+        return self::success($data);
     }
 }

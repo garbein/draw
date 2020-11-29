@@ -43,7 +43,7 @@ class PrizeService extends BaseService
         return $data ;
     }
 
-    protected static function getPrizeList()
+    public static function getPrizeList()
     {
         return Prize::find()
             ->select(['id', 'name', 'total_stock', 'used_stock', 'draw_percent', 'rule'])
