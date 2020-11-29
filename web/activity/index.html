@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>周年庆征文活动</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@3.3.7/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="http://localhost:8080/activity/layui/css/layui.css">
+    <!--[if lt IE 9]>
+      <script src="https://cdn.jsdelivr.net/npm/html5shiv@3.7.3/dist/html5shiv.min.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/respond.js@1.4.2/dest/respond.min.js"></script>
+    <![endif]-->
+    <style>
+        .init-hide{display: none;}
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div id="article_section" class="init-hide">
+            <h1 class="center">征文活动</h1>
+            <form id="signup_form" method="post" action="http://localhost:8080/draw/signup">
+                <div class="form-group">
+                    <label for="content">征文内容</label>
+                    <textarea class="form-control" rows="10" id="content" name="content" placeholder="征文内容"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="mobile">手机号码</label>
+                    <input type="type" class="form-control" id="mobile" name="mobile" placeholder="手机号码">
+                </div>
+                <div class="form-group">
+                    <label for="code">短信验证码</label>
+                    <div class="row">
+                        <div class="col-sm-10">
+                            <input type="type" class="form-control" id="code" name="code" placeholder="短信验证码">
+                        </div>
+                        <div class="col-sm-2"><button type="submit" class="btn btn-default" id="send_code">获取验证码</button></div>
+                    </div>
+                </div>
+                <input type="hidden" name="_csrf" value="">
+                <button type="submit" class="btn btn-primary btn-submit">提交</button>
+            </form>
+        </div>
+        <div id="draw_section" class="init-hide">
+            <div><button type="submit" class="btn btn-danger btn-draw">点我立即抽奖</button></div>
+        </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/jquery@1.12.4/dist/jquery.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@3.3.7/dist/js/bootstrap.min.js"></script>
+    <script src="http://localhost:8080/activity/layui/layui.all.js"></script>
+    <script>
+        $(document).ready(function () {
+
+            var siteDomain = 'http://localhost:8080';
+            var accessToken = localStorage.getItem('access_token');
+            if (accessToken) {
+                $('#draw_section').show();
+            } else {
+                $('#article_section').show();
+            }
+            $.ajaxSetup({
+                headers: {'Authorization': accessToken}
+            });
+            $('.btn-draw').click(function (event) {
+                event.preventDefault();
+                if (!accessToken) {
+                    layui.layer.alert('未报名');
+                    return false;
+                }
+                var btn = $(this);
+                btn.text('抽奖中');
+                $.ajax({
+                    type: 'POST',
+                    url: siteDomain + '/draw/start',
+                    //data: {'access_token': accessToken},
+                    dataType: 'json',
+                    complete: function(xhr, s) {
+                        btn.text('点我立即抽奖');
+                    },
+                    success: function (result) {
+                        if (result.code > 0) {
+                            layui.layer.msg(result.message);
+                        } else {
+                            layui.layer.msg('恭喜您中了' + result.data.prize_name);
+                        }
+                    },
+                    error: function () {
+                        layui.layer.msg('系统错误');
+                    }
+                });
+            });
+
+            $('#send_code').click(function (event) {
+                event.preventDefault();
+                var mobile = $.trim($('#mobile').val());
+                if (mobile === '') {
+                    layui.layer.msg('手机号码不能为空');
+                    return false;
+                }
+                var second = 60;
+                var interval = setInterval(function() {
+                    second--;
+                    $('#send_code').text(second + 's');
+                    if (second <= 0) {
+                        clearInterval(interval);
+                        $('#send_code').text('获取验证码');
+                    }
+                }, 1000);
+                $.ajax({
+                    type: 'POST',
+                    url: siteDomain + '/site/gen-code',
+                    data: {'mobile': mobile},
+                    dataType: 'json',
+                    success: function (result) {
+                        clearInterval(interval);
+                        $('#send_code').text('获取验证码');
+                        if (result.code > 0) {
+                            layui.layer.msg(result.message);
+                        } else {
+                            layui.layer.msg('验证码发送成功');
+                        }
+                    },
+                    error: function () {
+                        clearInterval(interval);
+                        $('#send_code').text('获取验证码');
+                        layui.layer.msg('系统错误');
+                    }
+                });
+            });
+
+            $('.btn-submit').click(function (event) {
+                $('#signup_form .btn-submit').prop('disabled', true).text('处理中');
+                event.preventDefault();
+                var params = $('#signup_form').serialize();
+                $.ajax({
+                    type: 'POST',
+                    url: siteDomain + '/draw/signup',
+                    data: params,
+                    dataType: 'json',
+                    success: function (result) {
+                        if (result.code > 0) {
+                            layui.layer.msg(result.message);
+                        } else {
+                            layui.layer.msg('提交成功可以去抽奖');
+                            localStorage.setItem('access_token', result.data.access_token);
+                        }
+                        recoverBtn();
+                    },
+                    error: function () {
+                        recoverBtn();
+                    }
+                });
+                return false;
+            });
+
+            function recoverBtn() {
+                $('#signup_form .btn-submit').prop('disabled', false).text('提交');
+            }
+        });
+    </script>
+</body>
+
+</html>
