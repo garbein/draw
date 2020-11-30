@@ -6,35 +6,55 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>周年庆征文活动</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@3.3.7/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="http://localhost:8080/activity/layui/css/layui.css">
+    <link href="/activity/bootstrap/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/activity/css/main.css">
+    <link rel="stylesheet" href="/activity/layui/css/layui.css">
     <!--[if lt IE 9]>
       <script src="https://cdn.jsdelivr.net/npm/html5shiv@3.7.3/dist/html5shiv.min.js"></script>
       <script src="https://cdn.jsdelivr.net/npm/respond.js@1.4.2/dest/respond.min.js"></script>
     <![endif]-->
     <style>
-        .init-hide{display: none;}
     </style>
 </head>
 
 <body>
-    <div class="container">
+    <nav class="navbar navbar-inverse navbar-fixed-top">
+        <div class="container">
+          <div class="navbar-header">
+            <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar" aria-expanded="false" aria-controls="navbar">
+              <span class="sr-only">Toggle navigation</span>
+              <span class="icon-bar"></span>
+              <span class="icon-bar"></span>
+              <span class="icon-bar"></span>
+            </button>
+            <a class="navbar-brand" href="#">周年庆征文活动</a>
+          </div>
+          <div id="navbar" class="collapse navbar-collapse">
+            <ul class="nav navbar-nav">
+              <li class="active"><a href="#">抽奖</a></li>
+              <li><a href="/activity/article.html">提取征文</a></li>
+              <li><a href="/draw/export">导出奖品</a></li>
+            </ul>
+          </div>
+        </div>
+      </nav>
+    <div class="container main">
         <div id="article_section" class="init-hide">
             <h1 class="center">征文活动</h1>
-            <form id="signup_form" method="post" action="http://localhost:8080/draw/signup">
+            <form id="signup_form" method="post" action="/draw/signup">
                 <div class="form-group">
                     <label for="content">征文内容</label>
-                    <textarea class="form-control" rows="10" id="content" name="content" placeholder="征文内容"></textarea>
+                    <textarea class="form-control" rows="10" id="content" name="content" placeholder="征文内容" maxlength="500"></textarea>
                 </div>
                 <div class="form-group">
                     <label for="mobile">手机号码</label>
-                    <input type="type" class="form-control" id="mobile" name="mobile" placeholder="手机号码">
+                    <input type="type" class="form-control" id="mobile" name="mobile" placeholder="手机号码" maxlength="11">
                 </div>
                 <div class="form-group">
                     <label for="code">短信验证码</label>
                     <div class="row">
                         <div class="col-sm-10">
-                            <input type="type" class="form-control" id="code" name="code" placeholder="短信验证码">
+                            <input type="type" class="form-control" id="code" name="code" placeholder="短信验证码" maxlength="6">
                         </div>
                         <div class="col-sm-2"><button type="submit" class="btn btn-default" id="send_code">获取验证码</button></div>
                     </div>
@@ -43,30 +63,33 @@
                 <button type="submit" class="btn btn-primary btn-submit">提交</button>
             </form>
         </div>
-        <div id="draw_section" class="init-hide">
-            <div><button type="submit" class="btn btn-danger btn-draw">点我立即抽奖</button></div>
+        <div id="draw_section" class="row init-hide">
+            <div class="submit-wrap"><button type="submit" class="btn btn-danger btn-draw">点我立即抽奖</button></div>
         </div>
-        <div id="draw_result_section" class="init-hide">
-            <div id="prize_result"></div>
+        <div id="draw_result_section" class="row init-hide text-center">
+            <div id="prize_result" class="prize-result"></div>
         </div>
     </div>
-    <script src="https://cdn.jsdelivr.net/npm/jquery@1.12.4/dist/jquery.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@3.3.7/dist/js/bootstrap.min.js"></script>
-    <script src="http://localhost:8080/activity/layui/layui.all.js"></script>
+    <script src="/activity/js/jquery.min.js"></script>
+    <script src="/activity/bootstrap/js/bootstrap.min.js"></script>
+    <script src="/activity/layui/layui.all.js"></script>
     <script>
         $(document).ready(function () {
-            var siteDomain = 'http://localhost:8080';
+            var siteDomain = '';
             var accessToken = localStorage.getItem('access_token');
+            $.ajaxSetup({
+                headers: {'Authorization': accessToken}
+            });
             if (accessToken) {
                 $.ajax({
                     type: 'POST',
                     url: siteDomain + '/draw/day-prize',
                     dataType: 'json',
                     success: function (result) {
-                        if (result && result.status) {
+                        if (result && result.data.status) {
                             var prizeName = '很遗憾未中奖';
-                            if (result.prize_name) {
-                                prizeName = '您今天中了' + result.prize_name;
+                            if (result.data.prize_name) {
+                                prizeName = '您今天中了' + result.data.prize_name;
                             }
                             $('#prize_result').html(prizeName);
                             $('#draw_result_section').show();
@@ -75,15 +98,13 @@
                         }
                     },
                     error: function () {
+                        $('#draw_section').show();
                         layui.layer.msg('系统错误');
                     }
                 });
             } else {
                 $('#article_section').show();
             }
-            $.ajaxSetup({
-                headers: {'Authorization': accessToken}
-            });
             $('.btn-draw').click(function (event) {
                 event.preventDefault();
                 if (!accessToken) {
@@ -105,6 +126,9 @@
                             layui.layer.msg(result.message);
                         } else {
                             layui.layer.msg('恭喜您中了' + result.data.prize_name);
+                            $('#prize_result').html('恭喜您中了' + result.data.prize_name);
+                            $('#draw_result_section').show();
+                            $('#draw_section').hide();
                         }
                     },
                     error: function () {
@@ -166,6 +190,12 @@
                         } else {
                             layui.layer.msg('提交成功可以去抽奖');
                             localStorage.setItem('access_token', result.data.access_token);
+                            accessToken = result.data.access_token;
+                            $.ajaxSetup({
+                                headers: {'Authorization': accessToken}
+                            });
+                            $('#article_section').hide();
+                            $('#draw_section').show();
                         }
                         recoverBtn();
                     },

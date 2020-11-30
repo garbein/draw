@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>周年庆征文活动</title>
+    <link href="/activity/bootstrap/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/activity/css/main.css">
+    <link rel="stylesheet" href="/activity/layui/css/layui.css">
+    <!--[if lt IE 9]>
+      <script src="https://cdn.jsdelivr.net/npm/html5shiv@3.7.3/dist/html5shiv.min.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/respond.js@1.4.2/dest/respond.min.js"></script>
+    <![endif]-->
+    <style>
+        .article-list {
+            padding-bottom: 20px;
+        }
+        .article-item {
+            padding-top: 20px;
+            padding-bottom: 10px;
+            border-bottom: 1px #cccccc dashed;
+        }
+        .article-mobile {
+            padding-bottom: 5px;
+        }
+        .empty {
+            padding-top : 20px;
+            text-align: center;
+        }
+    </style>
+</head>
+
+<body>
+    <nav class="navbar navbar-inverse navbar-fixed-top">
+        <div class="container">
+          <div class="navbar-header">
+            <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar" aria-expanded="false" aria-controls="navbar">
+              <span class="sr-only">Toggle navigation</span>
+              <span class="icon-bar"></span>
+              <span class="icon-bar"></span>
+              <span class="icon-bar"></span>
+            </button>
+            <a class="navbar-brand" href="#">周年庆征文活动</a>
+          </div>
+          <div id="navbar" class="collapse navbar-collapse">
+            <ul class="nav navbar-nav">
+              <li><a href="/activity/index.html">抽奖</a></li>
+              <li class="active"><a href="#">提取征文</a></li>
+              <li><a href="/draw/export">导出奖品</a></li>
+            </ul>
+          </div>
+        </div>
+      </nav>
+    <div class="container main">
+        <div>
+            <form class="form-inline">
+                <div class="form-group">
+                  <label for="mobile">手机号码: </label>
+                  <input type="text" class="form-control" name="mobile" placeholder="手机号码">
+                </div>
+                <input type="hidden" name="page" value="1">
+                <input type="hidden" name="size" value="10">
+                <button type="submit" class="btn btn-default btn-search">搜索</button>
+              </form>
+        </div>
+        <div class="article-list">
+        </div>
+        <div class="page-wrap" style="text-align: center; display: none;">
+            <a href="javascript:;" class="prev-page">上一页</a>
+            <a href="javascript:;" class="next-page">下一页</a>
+        </div>
+    </div>
+    <script src="/activity/js/jquery.min.js"></script>
+    <script src="/activity/bootstrap/js/bootstrap.min.js"></script>
+    <script src="/activity/layui/layui.all.js"></script>
+    <script>
+        $(document).ready(function () {
+            $('.btn-search').click(function() {
+                $('input[name="page"]').val(1);
+                getList();
+                return false;
+            });
+            $('.prev-page').click(function() {
+                changePage(-1);
+            });
+            $('.next-page').click(function() {
+                changePage(1);
+            });
+            function changePage(i) {
+                var v = $('input[name="page"]').val();
+                v = parseInt(v);
+                if (isNaN(v)) {
+                    v = 1;
+                }
+                v += i;
+                if (v <= 0) {
+                    v = 1;
+                }
+                $('input[name="page"]').val(v);
+                getList();
+            }
+            function getList() {
+                var params = $('form').serialize();
+                $.ajax({
+                    type: 'GET',
+                    url: '/draw/article?' + params,
+                    success: function (result) {
+                        renderActicle(result);
+                    },
+                    error: function () {
+                        layui.layer.msg('系统错误');
+                    }
+                });
+            }
+            function renderActicle(result) {
+                var html = '';
+                if (result.data) {
+                    var data = result.data;
+                    var prevPage = $('.prev-page');
+                    if (data.page == 1) {
+                        prevPage.hide();
+                    } else {
+                        prevPage.show();
+                    }
+                    var nextPage = $('.next-page');
+                    if (data.page * data.size > data.total) {
+                        nextPage.hide();
+                    } else {
+                        nextPage.show();
+                    }
+                    for (var i in data.list) {
+                        html += '<div class="article-item">'
+                            + '<h3 class="article-mobile">' + data.list[i]['mobile'] + '</h3>'
+                            + '<p class="article-content">' + data.list[i]['content'] + '</p>'
+                            + '</div>';
+                    }
+                }
+                if (html) {
+                    $('.page-wrap').show();
+                } else {
+                    html = '<p class="empty">未查询到数据</p>';
+                    $('.page-wrap').hide();
+                }
+
+                $('.article-list').html(html);
+            }
+            getList();
+        });
+    </script>
+</body>
+
+</html>

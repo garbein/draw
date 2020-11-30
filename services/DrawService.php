@@ -10,6 +10,7 @@ use app\models\Prize;
 use app\models\User;
 use app\models\UserDraw;
 use app\models\UserPrize;
+use yii\helpers\Html;
 
 class DrawService extends BaseService
 {
@@ -174,9 +175,12 @@ class DrawService extends BaseService
         return $model->save();
     }
 
-    public static function getArticleList($offset = 0, $limit = 20)
+    public static function getArticleList($condition, $offset = 0, $limit = 20)
     {
         $query = User::find();
+        if ($condition) {
+            $query->where($condition);
+        }
         $total = $query->count();
         $list = [];
         if ($total) {
@@ -187,7 +191,7 @@ class DrawService extends BaseService
                 ->asArray()
                 ->all();
             if ($rows) {
-                $userIds = array_column($list, 'id');
+                $userIds = array_column($rows, 'id');
                 $articles = Article::find()
                     ->select(['id', 'user_id', 'content'])
                     ->where(['user_id' => $userIds])
@@ -197,20 +201,24 @@ class DrawService extends BaseService
                     $articles = array_column($articles, null, 'user_id');
                 }
                 foreach ($rows as $row) {
-                    $article = $articles[$row['user_id']] ?? '';
-                    $content = $article['content'];
+                    $article = $articles[$row['id']] ?? [];
+                    if (empty($article)) {
+                        continue;
+                    }
+                    $content = Html::encode($article['content']);
                     $item = [
                         'mobile' => $row['mobile'],
                         'content_id' => $article['id'],
                         'content' => $content,
                     ];
+                    $list[] = $item;
                 }
             }
         }
-        return self::success(['list' => $list, 'total' => $total]);
+        return ['list' => $list, 'total' => $total];
     }
 
-    public static function exportUserPrize()
+    public static function getUserPrize()
     {
         $query = UserPrize::find()->innerJoin(User::tableName() . ' u', 'u.id = user_id');
         $query->select(['user_id', 'prize_id', 'mobile']);
@@ -218,12 +226,14 @@ class DrawService extends BaseService
         $list = [];
         if ($rows) {
             $prizeList = PrizeService::getPrizeList();
-            $prizes = array_column($prizeList, 'name', 'id');
+            $prizes = array_column($prizeList, null, 'id');
             foreach ($rows as $row) {
                 $item = [
                     'mobile' => $row['mobile'],
+                    //'prize_id' => $row['prize_id'],
                     'prize_name' => $prizes[$row['prize_id']]['name'] ?? '',
                 ];
+                $list[] = $item;
             }
         }
         return $list;
@@ -246,7 +256,7 @@ class DrawService extends BaseService
             $prizeName = $prize['name'] ?? '';
         }
         $data = [
-            'status' => $is,
+            'status' => (bool)$is,
             'prize_name' => $prizeName,
         ];
         return self::success($data);

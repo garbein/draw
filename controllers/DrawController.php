@@ -7,6 +7,7 @@ use app\services\DrawService;
 use app\services\SmsService;
 use app\utils\Validator;
 use app\utils\Filter;
+use Yii;
 
 class DrawController extends BaseController
 {
@@ -24,6 +25,9 @@ class DrawController extends BaseController
             return $this->error($filter['message']);
         }
         SmsService::validateCode($filter['data']['mobile'], $filter['data']['code']);
+        if (mb_strlen($filter['data']['content']) > 500) {
+            return $this->error('最多500字');
+        }
         $result = DrawService::signup($filter['data']);
         return $this->responseJson($result);
     }
@@ -40,8 +44,13 @@ class DrawController extends BaseController
 
     public function actionArticle()
     {
+        $mobile = trim($this->get('mobile', ''));
         $page = intval($this->get('page', 0));
         $size = intval($this->get('size', 20));
+        $condition = [];
+        if ($mobile) {
+            $condition['mobile'] = $mobile;
+        }
         if (empty($page)) {
             $page = 1;
         }
@@ -49,15 +58,23 @@ class DrawController extends BaseController
             $size = 20;
         }
         $offset = ($page - 1) * $size;
-        return DrawService::getArticleList($offset, $size);
+        $result = DrawService::getArticleList($condition, $offset, $size);
+        $result['page'] = $page;
+        $result['size'] = $size;
+        return $this->success($result);
     }
 
     public function actionExport()
     {
-       set_time_limit(0);
-       @ini_set('memory_limit','1024M');
-       $list = DrawService::exportUserPrize();
-       return $this->success($list);
+       $list = DrawService::getUserPrize();
+       $content = "手机\t奖品\t\n";
+       foreach ($list as $item) {
+           $content .= sprintf("%s\t%s\t\n", $item['mobile'], $item['prize_name']);
+       }
+       $options = [
+           'mimeType' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+       ];
+       return Yii::$app->response->sendContentAsFile($content, 'export' . date('YmdHis') . '.xlsx', $options);
     }
 
     public function actionDayPrize()
