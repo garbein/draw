@@ -1,6 +1,7 @@
 <?php
 
 $db = require __DIR__ . '/db.php';
+$redis = require __DIR__ . '/redis.php';
 
 $config = [
     'id' => 'app',
@@ -34,12 +35,7 @@ $config = [
             ],
         ],
         'db' => $db,
-        'redis' => [
-            'class' => 'yii\redis\Connection',
-            'hostname' => '127.0.0.1',
-            'port' => 6379,
-            'database' => 0,
-        ],
+        'redis' => $redis,
     ],
 ];
 
