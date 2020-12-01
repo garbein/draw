@@ -12,6 +12,9 @@ use Yii;
 class DrawController extends BaseController
 {
 
+    /**
+     * 报名
+     */
     public function actionSignup()
     {
         $fields = [
@@ -32,6 +35,9 @@ class DrawController extends BaseController
         return $this->responseJson($result);
     }
 
+    /**
+     * 抽奖
+     */
     public function actionStart()
     {
         $accessToken = $this->getAccessToken();
@@ -42,6 +48,9 @@ class DrawController extends BaseController
         return $this->responseJson($result);
     }
 
+    /**
+     * 提取用户征文
+     */
     public function actionArticle()
     {
         $mobile = trim($this->get('mobile', ''));
@@ -64,6 +73,9 @@ class DrawController extends BaseController
         return $this->success($result);
     }
 
+    /**
+     * 导出中奖记录
+     */
     public function actionExport()
     {
        $list = DrawService::getUserPrize();
@@ -77,6 +89,9 @@ class DrawController extends BaseController
        return Yii::$app->response->sendContentAsFile($content, 'export' . date('YmdHis') . '.xlsx', $options);
     }
 
+    /**
+     * 获取用户是否参与抽奖及中奖结果
+     */
     public function actionDayPrize()
     {
         $accessToken = $this->getAccessToken();
