@@ -13,21 +13,33 @@ use app\models\UserPrize;
 use yii\helpers\Html;
 
 /**
- * 用户报名及抽奖
+ * 用户报名及抽奖服务
+ * @author zhouyelin
+ *
  */
 class DrawService extends BaseService
 {
 
     /**
-     * 用户提交征文报名
-     * 兼容了已发表过征文直接登录
+     * 用户当天抽奖记录缓存key
+     * @var string
      */
+    const CACEH_KEY_DRAW_RECORD = 'draw:record:';
+    
+    const CACEH_KEY_PRIZE_USER_NUM = 'prize:user:num:';
+    
+   /**
+    *  用户提交征文报名兼容了已发表过征文直接登录
+    * @param array $params
+    * @return array
+    */
     public static function signup($params)
     {
         $mobile = $params['mobile'] ?? '';
         if (empty($mobile)) {
             return self::error('手机号码不能为空');
         }
+        //通过手机号码查询用户
         $user = User::findOne(['mobile' => $mobile]);
         $userId = 0;
         $accessToken = self::genAccessToken();
@@ -44,32 +56,39 @@ class DrawService extends BaseService
             } else {
                 return self::error('系统错误');
             }
+            //保存征文
             $articleModel = new Article();
             $articleModel->user_id = $userId;
             $articleModel->content = $params['content'];
             $articleModel->save();
         } else {
             $userId = $user['id'];
+            //更新user access_token
             $updated = User::updateAll(['access_token' => $accessToken, 'update_time' => time()], ['id' => $userId]);
             if (!$updated) {
                 return self::error('系统错误');
             }
         }
+        //存储access token到redis
         self::setAccessTokenCache($userId, $accessToken);
         return self::success(['access_token' => $accessToken]);
     }
 
     /**
      * 通过随机数和时间生成access_token 更好方案使用jwt
+     * @return string
      */
     protected static function genAccessToken()
     {
         return md5(bin2hex(random_bytes(16)) . microtime());
     }
 
-    /**
-     * 在redis存储access_token
-     */
+   /**
+    * 在redis存储access_token 30天过期
+    * @param integer $userId
+    * @param string $accessToken
+    * @return bool
+    */
     protected static function setAccessTokenCache($userId, $accessToken)
     {
         return Redis::getConn()->set('draw:access_token:' . $accessToken, $userId, 'EX', 30 * 86400);
@@ -77,6 +96,8 @@ class DrawService extends BaseService
 
     /**
      * 获取redis里的access_token
+     * @param string $accessToken
+     * @return string
      */
     protected static function getAccessTokenCache($accessToken)
     {
@@ -84,7 +105,9 @@ class DrawService extends BaseService
     }
 
     /**
-     * 抽奖
+     * 用户参与抽奖
+     * @param string $accessToken
+     * @return array|number[]|string[]
      */
     public static function start($accessToken)
     {
@@ -135,6 +158,8 @@ class DrawService extends BaseService
 
     /**
      * 核验奖品库存
+     * @param array $prize
+     * @return boolean
      */
     protected static function checkStock($prize)
     {
@@ -150,8 +175,8 @@ class DrawService extends BaseService
      */
     protected static function afterHit($userId, $prize)
     {
-        //redis有序集合记录中奖奖品
-        Redis::getConn()->zincrby('prize:user:num:' . $prize['id'], 1, $userId);
+        //redis有序集合incrby记录用户中奖奖品,方便规则限制
+        Redis::getConn()->zincrby(self::CACEH_KEY_PRIZE_USER_NUM . $prize['id'], 1, $userId);
         //在数据库里保存中奖记录
         self::addUserPrize($userId, $prize['id']);
         //更新已中奖品数量
@@ -159,7 +184,10 @@ class DrawService extends BaseService
     }
 
     /**
-     * 匹配抽奖规则
+     * 使用抽奖规则限制
+     * @param integer $userId
+     * @param array $prize
+     * @return boolean
      */
     protected static function handleRule($userId, $prize)
     {
@@ -176,7 +204,8 @@ class DrawService extends BaseService
         }
         //用户活动期间特定奖品最多中奖限制
         if (!empty($rule['user_limit'])) {
-            $score = Redis::getConn()->zscore('prize:user:num:' . $prize['id'], $userId);
+            //有序集合中元素是用户ID,分数是中奖数量
+            $score = Redis::getConn()->zscore(self::CACEH_KEY_PRIZE_USER_NUM . $prize['id'], $userId);
             if ($score >= $rule['user_limit']) {
                 return false;
             }
@@ -187,21 +216,29 @@ class DrawService extends BaseService
 
     /**
      * 记录用户参与当天活动
+     * 利用redis集合元素不重复特性记录 
+     * @param integer $userId
+     * @return bool
      */
     protected static function setDayDrawRecord($userId)
     {
-        return Redis::getConn()->sadd('draw:record:' . date('Ymd'), $userId);
+        return Redis::getConn()->sadd(self::CACEH_KEY_DRAW_RECORD . date('Ymd'), $userId);
     }
 
     /**
      * 随机抽奖
+     * @param array $prizeList
+     * @return array
      */
     protected static function randomDraw($prizeList)
     {
         $prize = [];
+        //随机数最大数
         $max = PrizeService::RANDOM_MAX * 100;
+        //生成随机数
         $rand = random_int(1, $max);
         foreach ($prizeList as $item) {
+            //随机数如果在奖品中奖区间内则中奖
             if ($rand > $item['low'] && $rand <= $item['high']) {
                 $prize = $item;
                 break;
@@ -211,7 +248,8 @@ class DrawService extends BaseService
     }
 
     /**
-     * 获取所有奖品优化从redis取
+     * 获取所有奖品优先从redis取
+     * @return array
      */
     protected static function getPrizeList()
     {
@@ -220,6 +258,9 @@ class DrawService extends BaseService
 
     /**
      * 记录用户中奖奖品
+     * @param integer $userId
+     * @param integer $prizeId
+     * @return boolean
      */
     protected static function addUserPrize($userId, $prizeId)
     {
@@ -230,8 +271,12 @@ class DrawService extends BaseService
     }
 
     /**
-     * 提取用户征文
-     */
+    * 提取用户征文
+    * @param array $condition
+    * @param number $offset
+    * @param number $limit
+    * @return array
+    */
     public static function getArticleList($condition, $offset = 0, $limit = 20)
     {
         $query = User::find();
@@ -276,7 +321,8 @@ class DrawService extends BaseService
     }
 
     /**
-     * 获取奖品记录
+     * 获取所有奖品记录
+     * @return array
      */
     public static function getUserPrize()
     {
@@ -300,7 +346,9 @@ class DrawService extends BaseService
     }
 
     /**
-     * 获取用户是否参与抽奖及中奖结果
+     * 通过access token获取用户当天是否参与抽奖及中奖结果
+     * @param string $accessToken
+     * @return array
      */
     public static function getDayPrize($accessToken)
     {
@@ -308,7 +356,8 @@ class DrawService extends BaseService
         if (empty($userId)) {
             return self::error('请重新登录', 1000);
         }
-        $is = Redis::getConn()->sismember('draw:record:' . date('Ymd'), $userId);
+        //
+        $is = Redis::getConn()->sismember(self::CACEH_KEY_DRAW_RECORD . date('Ymd'), $userId);
         $prizeName = '';
         if ($is) {
             $prize = UserPrize::find()->innerJoin(Prize::tableName() . ' p', 'p.id = prize_id')

@@ -8,12 +8,19 @@ use app\services\SmsService;
 use app\utils\Validator;
 use app\utils\Filter;
 use Yii;
+use app\components\Redis;
 
+/**
+ * 征文抽奖活动
+ * @author zhouyelin
+ *
+ */
 class DrawController extends BaseController
 {
 
     /**
-     * 报名
+     * 报名并注册账号
+     * @return \yii\web\Response
      */
     public function actionSignup()
     {
@@ -27,6 +34,11 @@ class DrawController extends BaseController
         if ($filter['code'] !== Filter::OK) {
             return $this->error($filter['message']);
         }
+        //三次内只能请求一次
+        if (self::limitFrequency($filter['data']['mobile'])) {
+            return $this->error('请求过于频繁');
+        }
+        //核验短信验证码
         SmsService::validateCode($filter['data']['mobile'], $filter['data']['code']);
         if (mb_strlen($filter['data']['content']) > 500) {
             return $this->error('最多500字');
@@ -36,7 +48,8 @@ class DrawController extends BaseController
     }
 
     /**
-     * 抽奖
+     * 开始抽奖
+     * @return \yii\web\Response
      */
     public function actionStart()
     {
@@ -50,6 +63,7 @@ class DrawController extends BaseController
 
     /**
      * 提取用户征文
+     * @return \yii\web\Response
      */
     public function actionArticle()
     {
@@ -75,6 +89,7 @@ class DrawController extends BaseController
 
     /**
      * 导出中奖记录
+     * @return \yii\web\Response
      */
     public function actionExport()
     {
@@ -91,6 +106,7 @@ class DrawController extends BaseController
 
     /**
      * 获取用户是否参与抽奖及中奖结果
+     * @return \yii\web\Response
      */
     public function actionDayPrize()
     {
